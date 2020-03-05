@@ -1,0 +1,18 @@
+docker run -it --name radarr --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro -v /data:/data -v radarr_data:/config -p 7878:7878  -d linuxserver/radarr:preview
+
+docker run -it --name nzbget --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro -v /data/Usenet:/data  -v nzbget_data:/config -p 6789:6789 -d linuxserver/nzbget
+
+docker run -it --name sonarr --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro -v /data:/data -v sonarr_data:/config -p 8989:8989  -d linuxserver/sonarr:preview
+
+docker run -it --name jackett --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro  -p 9117:9117 -d linuxserver/jackett
+
+docker run -it --name bazarr --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro  -v bazarr_data:/config -v /data:/data  -p 6767:6767 -d linuxserver/bazarr
+
+
+
+Update all docker images:
+
+docker images |grep -v REPOSITORY|awk '{print $1}'|xargs -L1 docker pull 
+
+create container:
+docker volume create jackett_data
