@@ -1,18 +1,175 @@
-docker run -it --name radarr --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro -v /data:/data -v radarr_data:/config -p 7878:7878  -d linuxserver/radarr:preview
+version: '2'
+services:
 
-docker run -it --name nzbget --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro -v /data/Usenet:/data  -v nzbget_data:/config -p 6789:6789 -d linuxserver/nzbget
+###  Portainer Install
+#### docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer
 
-docker run -it --name sonarr --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro -v /data:/data -v sonarr_data:/config -p 8989:8989  -d linuxserver/sonarr:preview
+  jackett:
+    container_name: jackett
+    image: linuxserver/jackett:latest
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - PUID=1000 # default user id, defined in .env
+      - PGID=1000 # default group id, defined in .env
+      - TZ=America/New_York # timezone, defined in .env
+    volumes:
+      - jackett_data:/config # config files
+### Docker Command Line ###
+## docker run -it --name jackett --network host --restart unless-stopped -v /media/Plex/working:/working -v /media/Personal/config/jackett:/config -e PUID=1000 -e PGiD=1000 -d linuxserver/jackett:latest
 
-docker run -it --name jackett --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro  -p 9117:9117 -d linuxserver/jackett
 
-docker run -it --name bazarr --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro  -v bazarr_data:/config -v /data:/data  -p 6767:6767 -d linuxserver/bazarr
+  sonarr:
+    container_name: sonarr
+    image: linuxserver/sonarr:preview
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - PUID=1000 # default user id, defined in .env
+      - PGID=1000 # default group id, defined in .env
+      - TZ=America/New_York # timezone, defined in .env
+#    ports:
+#      - 8989:8989
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - sonarr_data:/config # config files
+      - /data:/data # tv shows folder
+
+## Docker Command Line ##
+# docker run -it --name sonarr --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro -v /media/Personal/KidsTV:/KidsTV -v /media/Personal/EndedTV:/EndedTV -v /media/Plex/TVShows:/tv -v /media/Plex/complete:/complete -v /media/Plex/working:/working -v /media/Personal/config/sonarr:/config -e PUID=1000 -e PGiD=1000 -d linuxserver/sonarr:preview
+
+  radarr:
+    container_name: radarr
+    image: linuxserver/radarr:preview
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - PUID=1000 # default user id, defined in .env
+      - PGID=1000 # default group id, defined in .env
+      - TZ=America/New_York # timezone, defined in .env
+#    ports:
+#      - 7878:7878
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - radarr_data:/config # config files
+      - /data:/data # movies folder
+  ##  Docker Command line ##
+ # docker run -it --name radarr --network host --restart unless-stopped -v /etc/localtime:/etc/localtime:ro -v /media/Personal/Movies:/Movies -v /media/Plex/complete:/complete -v /media/Plex/working:/working -v /media/Personal/config/radarr:/config -e PUID=1000 -e PGiD=1000 -d linuxserver/radarr:preview
+
+  nzbget:
+    container_name: nzbget
+    image: linuxserver/nzbget:latest
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - PUID=1000 # default user id, defined in .env
+      - PGID=1000 # default group id, defined in .env
+      - TZ=America/New_York # timezone, defined in .env
+    volumes:
+      - /data/Usenet:/data/Usenet # download folder
+      - nzbget_data:/config # config files
+
+  ouroboros:
+    container_name: ouroboros
+    hostname: ouroboros
+    image: pyouroboros/ouroboros
+    environment:
+      - CLEANUP=true
+      - INTERVAL=86400
+      - LOG_LEVEL=debug
+      - SELF_UPDATE=true
+      - TZ=America/New_York
+      
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # plex-server:
+  #   container_name: plex-server
+  #   image: plexinc/pms-docker:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     - TZ=${TZ} # timezone, defined in .env
+  #   network_mode: host
+  #   volumes:
+  #     - ${ROOT}/config/plex/db:/config # plex database
+  #     - ${ROOT}/config/plex/transcode:/transcode # temp transcoded files
+  #     - ${ROOT}/complete:/data # media library
 
 
+  vpn:
+    container_name: vpn
+    image: dperson/openvpn-client:latest
+    cap_add:
+      - net_admin # required to modify network interfaces
+    restart: unless-stopped
+    volumes:
+      - /dev/net:/dev/net:z # tun device
+      - /data/Config/vpn:/vpn # OpenVPN configuration
+    security_opt:
+      - label:disable
+    ports:
+      - 8112:8112 # port for deluge web UI to be reachable from local network
+      - 58846:8846
+    command: '-f "" -r 192.168.1.0/24' # enable firewall and route local network traffic
 
-Update all docker images:
+###- Docker command line option ####
+# docker run -it --cap-add=NET_ADMIN --device /dev/net/tun --name vpn --security-opt label:disable --restart unless-stopped -v /media/Personal/config/vpn:/vpn -v /dev/net:/dev/net:z -p 8112:8112 -d dperson/openvpn-client:armhf
 
-docker images |grep -v REPOSITORY|awk '{print $1}'|xargs -L1 docker pull 
+  deluge:
+    container_name: deluge
+    image: linuxserver/deluge:latest
+    restart: unless-stopped
+    network_mode: service:vpn # run on the vpn network
+    environment:
+      - PUID=1000 # default user id, defined in .env
+      - PGID=1000 # default group id, defined in .env
+      - UMASK_SET=022
+      - TZ=America/New_York # timezone, defined in .env
+    volumes:
+      - /data/Torrents/:/downloads # downloads folder
+      - /data/Config/deluge:/config # config files
+# Docker Command line Option ##
+# docker run -it --network container:vpn --name deluge  --restart unless-stopped -v /media/Plex/complete:/complete -v /media/Plex/working:/working -v /media/Personal/config/deluge:/config -e PUID=1000 -e PGiD=1000 -d linuxserver/deluge:latest
 
-create container:
-docker volume create jackett_data
+
+  jackett:
+    image: linuxserver/jackett
+    container_name: jackett
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /data/Config/jackett:/config
+    ports:
+      - 9117:9117
+    restart: unless-stopped
+
+  bazarr:
+    image: linuxserver/bazarr
+    container_name: bazarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - UMASK_SET=022 #optional
+    volumes:
+      - /bazarr_data:/config
+      - /data/Media/Movies:/data/Media/Movies
+      - /data/Media/TV:/data/Media/TV
+    ports:
+      - 6767:6767
+    restart: unless-stopped
+
+#### docker volume create <insert name here>
+
+volumes:
+    nzbget_data:
+        external: true
+    sonarr_data:
+        external: true
+    radarr_data:
+        external: true
+    bazarr_data:
+        external: true
